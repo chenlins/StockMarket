@@ -1,0 +1,37 @@
+# 选股工具配置
+
+data:
+  db_path: data/stock.db
+  cache_days: 1          # 行情数据缓存天数
+
+screening:
+  top_n: 20              # 输出股票数量
+  min_price: 3.0         # 最低股价，过滤低价股
+  main_board_only: true  # 仅沪深主板 (600/601/603/605/000/001/002/003)
+  ordinary_only: true    # 仅普通股，排除 ST/*ST/退市
+  change_pct_min: 0      # 最低涨幅 (%)
+  change_pct_max: 10     # 最高涨幅 (%)
+  exclude_st: true       # 兼容旧配置，等同 ordinary_only
+
+strategies:
+  value:
+    enabled: true
+    weight: 0.5
+    pe_max: 25
+    roe_min: 10
+    pb_max: 3
+
+  momentum:
+    enabled: true
+    weight: 0.5
+    ma_short: 5
+    ma_long: 20
+    volume_ratio_min: 1.2   # 成交量需高于 N 日均量的倍数
+
+scheduler:
+  enabled: false
+  run_time: "16:30"         # 每日收盘后运行 (HH:MM)
+
+api:
+  host: "127.0.0.1"
+  port: 8000

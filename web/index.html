@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GiveMeMoney 选股工具</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <h1>GiveMeMoney 选股工具</h1>
+          <p>复用形态选股策略，按价格、板块、ST 状态和 K 线形态筛选，并生成研究候选。</p>
+        </div>
+        <button id="runBtn" class="primary">开始筛选</button>
+      </section>
+
+      <section class="workspace">
+        <aside class="filters" aria-label="筛选条件">
+          <label>
+            <span>最低价格</span>
+            <input id="minPrice" type="number" min="0" step="0.01" value="5" />
+          </label>
+          <label>
+            <span>最高价格</span>
+            <input id="maxPrice" type="number" min="0" step="0.01" value="60" />
+          </label>
+          <label>
+            <span>最低市值（亿元）</span>
+            <input id="minMarketCap" type="number" min="0" step="1" value="0" />
+          </label>
+          <label>
+            <span>最高市值（亿元）</span>
+            <input id="maxMarketCap" type="number" min="0" step="1" value="999999" />
+          </label>
+          <label>
+            <span>最低成交量（万手）</span>
+            <input id="minVolume" type="number" min="0" step="1" value="0" />
+          </label>
+          <label>
+            <span>最高成交量（万手）</span>
+            <input id="maxVolume" type="number" min="0" step="1" value="999999" />
+          </label>
+          <label>
+            <span>创业板</span>
+            <select id="chiNext">
+              <option value="any">不限</option>
+              <option value="only">只看创业板</option>
+              <option value="exclude" selected>排除创业板</option>
+            </select>
+          </label>
+          <label>
+            <span>科创板</span>
+            <select id="star">
+              <option value="any">不限</option>
+              <option value="only">只看科创板</option>
+              <option value="exclude" selected>排除科创板</option>
+            </select>
+          </label>
+          <label>
+            <span>ST</span>
+            <select id="st">
+              <option value="exclude">排除 ST</option>
+              <option value="any">不限</option>
+              <option value="only">只看 ST</option>
+            </select>
+          </label>
+          <label>
+            <span class="label-row">
+              <span>形态</span>
+              <button id="patternHelpBtn" class="help-btn" type="button" aria-label="查看形态逻辑说明">?</button>
+            </span>
+            <select id="pattern">
+              <option value="rise_price_volume">量价齐升</option>
+              <option value="low_volume_pullback">缩量回调</option>
+              <option value="volume_spike_consolidation">放量后缩量回踩MA10</option>
+              <option value="limit_up_consolidation">涨停后横盘整理</option>
+              <option value="break_ma5_pressure">周线三底5周线承压</option>
+              <option value="breakout">放量突破</option>
+              <option value="any">不限形态</option>
+            </select>
+          </label>
+          <label>
+            <span>分析数量</span>
+            <input id="maxInspect" type="number" min="20" max="220" step="10" value="90" />
+          </label>
+          <label>
+            <span>排序方式</span>
+            <select id="sortBy">
+              <option value="score">形态分优先</option>
+              <option value="marketCapAsc">市值小到大</option>
+              <option value="marketCapDesc">市值大到小</option>
+              <option value="amountDesc">成交额大到小</option>
+              <option value="ma10DistanceAsc">距离MA10最近</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input id="forceRefresh" type="checkbox" value="true" />
+            <span>强制刷新K线</span>
+          </label>
+          <details class="advanced">
+            <summary>高级参数</summary>
+            <label>
+              <span>涨停后最少整理天数</span>
+              <input id="limitMinDays" type="number" min="3" max="12" step="1" value="5" />
+            </label>
+            <label>
+              <span>MA5/MA10最大距离（%）</span>
+              <input id="maGapPct" type="number" min="1" max="12" step="0.5" value="5" />
+            </label>
+            <label>
+              <span>涨停后调整幅度（%）</span>
+              <input id="adjustmentPct" type="number" min="3" max="20" step="0.5" value="10" />
+            </label>
+          </details>
+        </aside>
+
+        <section class="content">
+          <div id="status" class="status">等待筛选</div>
+          <section id="patternHelp" class="help-panel hidden" aria-live="polite">
+            <div class="help-head">
+              <strong>形态判断逻辑</strong>
+              <button id="patternHelpClose" class="text-btn" type="button">收起</button>
+            </div>
+            <div id="patternHelpBody" class="help-body"></div>
+          </section>
+          <section id="recommendation" class="recommendation hidden"></section>
+          <section class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>股票</th>
+                  <th>价格</th>
+                  <th>涨跌</th>
+                  <th>换手</th>
+                  <th>K线</th>
+                  <th>形态分</th>
+                  <th>明细</th>
+                  <th>均线</th>
+                  <th>操作区间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="rows">
+                <tr><td colspan="10" class="empty">输入条件后开始筛选</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <div id="chartModal" class="chart-modal hidden" role="dialog" aria-modal="true" aria-label="K线放大图">
+      <div class="chart-dialog">
+        <div class="chart-dialog-head">
+          <strong id="chartTitle">最近 30 天 K 线</strong>
+          <button id="chartClose" class="text-btn" type="button">关闭</button>
+        </div>
+        <div id="chartLarge" class="chart-large"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
