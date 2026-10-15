@@ -3,3 +3,5 @@ https://github.com/shinjiyu/CososInspector.git
 Save All Resources
 
 cc-inspector
+
+https://github.com/morluto/rea
