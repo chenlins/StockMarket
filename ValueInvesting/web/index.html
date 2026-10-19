@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="输入 A 股代码，查看可解释的 100 分股票健康报告。" />
+    <title>A 股健康检测工具</title>
+    <link rel="stylesheet" href="/styles.css?v=20261014c" />
+</head>
+
+<body>
+    <main class="shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">VALUE INVESTING CHECKUP</p>
+                <h1>A 股健康检测工具</h1>
+                <p>用财务、估值、趋势与风险数据，生成一份可追溯的 100 分健康报告。</p>
+            </div>
+        </header>
+
+        <section class="search-card">
+            <form id="searchForm" novalidate>
+                <label for="stockCode">股票代码</label>
+                <div class="search-row">
+                    <input id="stockCode" name="code" inputmode="numeric" maxlength="6" pattern="\d{6}"
+                        placeholder="例如 600519" autocomplete="off" />
+                    <button id="submitBtn" type="submit">开始检测</button>
+                </div>
+                <div class="examples">
+                    <span>快速体验：</span>
+                    <button type="button" data-code="600519">贵州茅台 600519</button>
+                    <button type="button" data-code="000858">五粮液 000858</button>
+                    <button type="button" data-code="600036">招商银行 600036</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="ranking-card">
+            <div class="ranking-head">
+                <div>
+                    <p class="eyebrow">STARTUP HEALTH RANKING</p>
+                    <h2>本次启动健康分 Top 10</h2>
+                    <p id="rankingStatus">正在启动两阶段筛选，请稍候…</p>
+                </div>
+                <button id="refreshRanking" type="button">重新筛选</button>
+            </div>
+            <div id="rankingProgress" class="ranking-progress"><i></i></div>
+            <div id="rankingList" class="ranking-list">
+                <div class="ranking-empty">正在读取上次排行并后台刷新最新结果</div>
+            </div>
+            <p class="ranking-note">先用批量财报和 120 日行情筛选热度候选，再对前 30 名获取单股完整财务数据精确复评。点击股票将查看与榜单分数完全一致的报告快照；手动检测则按最新可用数据重新计算。
+            </p>
+        </section>
+
+        <div id="status" class="status">输入 6 位 A 股代码开始检测</div>
+
+        <section id="report" class="report report-pending" aria-live="polite">
+            <section class="hero-card">
+                <div>
+                    <p id="stockMeta" class="eyebrow"></p>
+                    <h2 id="stockName"></h2>
+                    <p id="overview" class="overview"></p>
+                    <div id="reportTags" class="tags"></div>
+                </div>
+                <div id="scoreRing" class="score-ring">
+                    <div><strong id="totalScore">--</strong><span>/ 100</span></div>
+                    <b id="grade">等待检测</b>
+                </div>
+            </section>
+
+            <section id="buySection">
+                <div class="section-title">
+                    <div><span>01</span>
+                        <h2>推荐买入</h2>
+                    </div>
+                    <p>按健康分、均线和波动率生成的参考计划，只用于研究对照。</p>
+                </div>
+                <div id="tradePlan" class="trade-plan">
+                    <div class="trade-empty">买入价、止盈价和止损价会留在这里。重新打开页面时，先显示上次结果，再后台更新。</div>
+                </div>
+            </section>
+
+            <section>
+                <div class="section-title">
+                    <div><span>02</span>
+                        <h2>五维健康画像</h2>
+                    </div>
+                    <p>每项得分均可展开查看原始指标和加扣分原因。</p>
+                </div>
+                <div id="dimensions" class="dimension-grid"></div>
+            </section>
+
+            <section class="insight-grid">
+                <article class="insight-card positive-card">
+                    <h3>主要优势</h3>
+                    <ul id="strengths"></ul>
+                </article>
+                <article class="insight-card risk-card">
+                    <h3>核心风险与缺失项</h3>
+                    <ul id="risks"></ul>
+                </article>
+            </section>
+
+            <section>
+                <div class="section-title">
+                    <div><span>03</span>
+                        <h2>关键数据</h2>
+                    </div>
+                    <p>“—”表示当前公开接口未返回该项，评分按中性值处理。</p>
+                </div>
+                <div id="metrics" class="metric-grid"></div>
+            </section>
+
+            <section class="source-card">
+                <div>
+                    <h3>数据来源与时间</h3>
+                    <div id="sources"></div>
+                </div>
+                <p id="limitations"></p>
+                <p id="warnings" class="warning"></p>
+            </section>
+            <p id="disclaimer" class="disclaimer"></p>
+        </section>
+    </main>
+    <script src="/app.js?v=20261014c"></script>
+</body>
+
+</html>

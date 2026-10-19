@@ -1,0 +1,33 @@
+server:
+  host: "0.0.0.0"
+  port: 8788
+
+data:
+  db_path: "data/value_investing.db"
+  request_interval_seconds: 0.35
+  retries: 2
+  quote_cache_minutes: 15
+  history_cache_hours: 12
+  financial_cache_hours: 24
+  allow_stale_cache_days: 14
+
+screening:
+  enabled: true
+  top_count: 10
+  hot_limit: 200
+  precise_count: 30
+  min_confidence: 60
+  workers: 6
+
+scoring:
+  weights:
+    profitability: 30
+    valuation: 20
+    safety: 20
+    trend: 20
+    liquidity: 10
+  grades:
+    excellent: 85
+    good: 70
+    average: 55
+    weak: 40
