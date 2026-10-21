@@ -204,18 +204,12 @@ class StockDataFetcher:
             raise DataFetchError("实时行情返回为空")
         return DataResult(quotes, result.source, result.fetched_at, result.stale)
 
-    def get_hot_rank(self, limit: int = 200) -> DataResult:
-        """Combine Eastmoney's current-popularity and popularity-rising lists."""
+    def get_hot_rank(self, limit: int = 500) -> DataResult:
+        """Take the popularity list's top ranks, then fill from the rising list if short."""
         ttl = float(self.config.get("hot_rank_cache_minutes", 30)) * 60
+        page_size = 100
 
         def fetch_hot_rank() -> list[dict]:
-            common = {
-                "appId": "appId01",
-                "globalId": "786e4c21-70dc-435a-93bb-38",
-                "marketType": "",
-                "pageNo": 1,
-                "pageSize": 100,
-            }
             endpoints = (
                 ("https://emappdata.eastmoney.com/stockrank/getAllCurrentList", "rk", "人气榜"),
                 ("https://emappdata.eastmoney.com/stockrank/getAllHisRcList", "hrcrk", "飙升榜"),
@@ -223,30 +217,51 @@ class StockDataFetcher:
             ranked: list[dict] = []
             seen: set[str] = set()
             for url, rank_field, list_name in endpoints:
-                response = requests.post(url, json=common, timeout=20)
-                response.raise_for_status()
-                rows = response.json().get("data") or []
-                for row in rows:
-                    code = _row_code({"代码": row.get("sc")})
-                    if not code or code in seen or not code.startswith(("0", "3", "6", "8", "4")):
-                        continue
-                    seen.add(code)
-                    ranked.append(
-                        {
-                            "code": code,
-                            "heat_rank": len(ranked) + 1,
-                            "source_rank": int(_number(row.get(rank_field)) or len(ranked) + 1),
-                            "heat_list": list_name,
-                        }
+                if len(ranked) >= limit:
+                    break
+                page_no = 1
+                while len(ranked) < limit and page_no <= 20:
+                    response = requests.post(
+                        url,
+                        json={
+                            "appId": "appId01",
+                            "globalId": "786e4c21-70dc-435a-93bb-38",
+                            "marketType": "",
+                            "pageNo": page_no,
+                            "pageSize": page_size,
+                        },
+                        timeout=20,
                     )
-                    if len(ranked) >= limit:
-                        return ranked
+                    response.raise_for_status()
+                    rows = response.json().get("data") or []
+                    if not rows:
+                        break
+                    added = 0
+                    for row in rows:
+                        code = _row_code({"代码": row.get("sc")})
+                        if not code or code in seen or not code.startswith(("0", "3", "6", "8", "4")):
+                            continue
+                        seen.add(code)
+                        ranked.append(
+                            {
+                                "code": code,
+                                "heat_rank": len(ranked) + 1,
+                                "source_rank": int(_number(row.get(rank_field)) or len(ranked) + 1),
+                                "heat_list": list_name,
+                            }
+                        )
+                        added += 1
+                        if len(ranked) >= limit:
+                            return ranked
+                    if added == 0 or len(rows) < page_size:
+                        break
+                    page_no += 1
             if not ranked:
                 raise DataFetchError("东方财富人气榜返回为空")
             return ranked
 
         return self._cached_or_fetch(
-            f"hot-rank:eastmoney:combined:{limit}:v2",
+            f"hot-rank:eastmoney:combined:{limit}:v3",
             ttl,
             fetch_hot_rank,
             "东方财富人气榜与飙升榜",

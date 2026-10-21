@@ -13,9 +13,10 @@ from health.trade_plan import ensure_trade_plan
 
 
 class TopHealthScreener:
-    """Score the market's 200 hottest stocks and return a strict health Top 10."""
+    """Score the market's hottest stocks and return a strict health Top 10."""
 
-    CACHE_KEY = "screening:hot200-top-health:v5"
+    CACHE_KEY = "screening:hot500-top-health:v6"
+    LEGACY_CACHE_KEYS = ("screening:hot200-top-health:v5",)
 
     def __init__(self, fetcher, storage, config: dict):
         self.fetcher = fetcher
@@ -32,6 +33,11 @@ class TopHealthScreener:
             "message": "等待启动筛选",
         }
         cached = storage.get(self.CACHE_KEY)
+        if not (cached and isinstance(cached["payload"], dict)):
+            for legacy_key in self.LEGACY_CACHE_KEYS:
+                cached = storage.get(legacy_key)
+                if cached and isinstance(cached["payload"], dict):
+                    break
         if cached and isinstance(cached["payload"], dict):
             self._state.update(cached["payload"])
             self._state["status"] = "cached"
@@ -46,10 +52,11 @@ class TopHealthScreener:
                 return
             self._running = True
             self._state["status"] = "running"
+            hot_limit = int(self.config.get("hot_limit", 500))
             self._state["message"] = (
                 "正在后台刷新，当前展示上次排行"
                 if self._state["results"]
-                else "正在获取市场热度前 200 股票"
+                else f"正在获取市场热度前 {hot_limit} 股票"
             )
         threading.Thread(target=self._refresh, name="top-health-screen", daemon=True).start()
 
@@ -85,7 +92,7 @@ class TopHealthScreener:
             quote_result = self.fetcher.get_quote_list()
             eligible = [quote for quote in quote_result.data if _is_eligible(quote)]
             quote_by_code = {quote["code"]: quote for quote in eligible}
-            hot_limit = int(self.config.get("hot_limit", 200))
+            hot_limit = int(self.config.get("hot_limit", 500))
             hot_result = self.fetcher.get_hot_rank(hot_limit)
             hot_rows = list(hot_result.data)
 

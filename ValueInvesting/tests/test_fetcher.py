@@ -100,6 +100,76 @@ def test_parse_tencent_quote_uses_yuan_for_amount_and_market_cap():
     assert quote["pb"] == 6.69
 
 
+class _HotRankResponse:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {"data": self._rows}
+
+
+def test_hot_rank_pages_popularity_list_until_limit(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_post(url, json, timeout):
+        calls.append((url, json["pageNo"]))
+        if "getAllCurrentList" not in url:
+            return _HotRankResponse([])
+        start = (json["pageNo"] - 1) * 100
+        rows = [
+            {"sc": f"SH{600000 + start + offset:06d}", "rk": start + offset + 1}
+            for offset in range(100)
+        ]
+        return _HotRankResponse(rows)
+
+    monkeypatch.setattr("data.fetcher.requests.post", fake_post)
+    fetcher = StockDataFetcher(
+        CacheStorage(tmp_path / "cache.db"),
+        {"retries": 1, "request_interval_seconds": 0, "hot_rank_cache_minutes": 30},
+    )
+
+    result = fetcher.get_hot_rank(250)
+
+    assert len(result.data) == 250
+    assert result.data[0]["code"] == "600000"
+    assert result.data[249]["code"] == "600249"
+    assert result.data[249]["heat_rank"] == 250
+    assert result.data[249]["heat_list"] == "人气榜"
+    assert [page for url, page in calls if "getAllCurrentList" in url] == [1, 2, 3]
+    assert not any("getAllHisRcList" in url for url, _page in calls)
+
+
+def test_hot_rank_fills_from_rising_list_when_popularity_is_short(monkeypatch, tmp_path):
+    def fake_post(url, json, timeout):
+        if "getAllCurrentList" in url:
+            if json["pageNo"] > 1:
+                return _HotRankResponse([])
+            return _HotRankResponse(
+                [{"sc": "SH600001", "rk": 1}, {"sc": "SH600002", "rk": 2}]
+            )
+        return _HotRankResponse(
+            [
+                {"sc": "SH600002", "hrcrk": 1},
+                {"sc": "SZ000001", "hrcrk": 2},
+                {"sc": "SZ300001", "hrcrk": 3},
+            ]
+        )
+
+    monkeypatch.setattr("data.fetcher.requests.post", fake_post)
+    fetcher = StockDataFetcher(
+        CacheStorage(tmp_path / "cache.db"),
+        {"retries": 1, "request_interval_seconds": 0, "hot_rank_cache_minutes": 30},
+    )
+
+    result = fetcher.get_hot_rank(4)
+
+    assert [item["code"] for item in result.data] == ["600001", "600002", "000001", "300001"]
+    assert [item["heat_list"] for item in result.data] == ["人气榜", "人气榜", "飙升榜", "飙升榜"]
+
+
 def test_history_live_source_wins_over_older_cached_source(monkeypatch, tmp_path):
     storage = CacheStorage(tmp_path / "cache.db")
     storage.put("history:600519:120:eastmoney", [{"date": "2026-10-14", "close": 1}], "东方财富前复权日线")
