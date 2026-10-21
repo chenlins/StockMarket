@@ -15,8 +15,11 @@ from health.trade_plan import ensure_trade_plan
 class TopHealthScreener:
     """Score the market's hottest stocks and return a strict health Top 10."""
 
-    CACHE_KEY = "screening:hot500-top-health:v6"
-    LEGACY_CACHE_KEYS = ("screening:hot200-top-health:v5",)
+    CACHE_KEY = "screening:hot500-cap500-top-health:v7"
+    LEGACY_CACHE_KEYS = (
+        "screening:hot500-top-health:v6",
+        "screening:hot200-top-health:v5",
+    )
 
     def __init__(self, fetcher, storage, config: dict):
         self.fetcher = fetcher
@@ -53,10 +56,11 @@ class TopHealthScreener:
             self._running = True
             self._state["status"] = "running"
             hot_limit = int(self.config.get("hot_limit", 500))
+            max_market_cap_yi = _max_market_cap_yi(self.config)
             self._state["message"] = (
                 "正在后台刷新，当前展示上次排行"
                 if self._state["results"]
-                else f"正在获取市场热度前 {hot_limit} 股票"
+                else f"正在获取热度前 {hot_limit}、市值 {max_market_cap_yi:g} 亿以下股票"
             )
         threading.Thread(target=self._refresh, name="top-health-screen", daemon=True).start()
 
@@ -93,13 +97,18 @@ class TopHealthScreener:
             eligible = [quote for quote in quote_result.data if _is_eligible(quote)]
             quote_by_code = {quote["code"]: quote for quote in eligible}
             hot_limit = int(self.config.get("hot_limit", 500))
+            max_market_cap = _max_market_cap_yi(self.config) * 100_000_000
             hot_result = self.fetcher.get_hot_rank(hot_limit)
             hot_rows = list(hot_result.data)
 
             seen = {row["code"] for row in hot_rows}
             if len(hot_rows) < hot_limit:
                 active_quotes = sorted(
-                    (quote for quote in eligible if quote["code"] not in seen),
+                    (
+                        quote
+                        for quote in eligible
+                        if quote["code"] not in seen and _under_market_cap(quote, max_market_cap)
+                    ),
                     key=lambda quote: _number(quote.get("amount")) or 0,
                     reverse=True,
                 )
@@ -127,7 +136,7 @@ class TopHealthScreener:
             candidates = []
             for hot in hot_rows:
                 quote = quote_by_code.get(hot["code"])
-                if quote is None:
+                if quote is None or not _under_market_cap(quote, max_market_cap):
                     continue
                 financials = financials_by_code.get(quote["code"], {})
                 enriched_quote = _enrich_quote(quote, financials)
@@ -141,7 +150,9 @@ class TopHealthScreener:
             total = len(candidates)
             self._update(
                 progress={"current": 0, "total": total},
-                message=f"已获取热度候选，正在完整检测 {total} 只股票",
+                message=(
+                    f"已获取热度候选，正在检测市值 {_max_market_cap_yi(self.config):g} 亿以下的 {total} 只股票"
+                ),
             )
 
             scored = []
@@ -295,6 +306,7 @@ class TopHealthScreener:
                     len(reliable),
                     market_financials_failed,
                     initial_failures,
+                    _max_market_cap_yi(self.config),
                 ),
                 "universe_count": len(eligible),
                 "hot_pool_count": len(hot_rows),
@@ -320,6 +332,15 @@ class TopHealthScreener:
             self._state.update(changes)
 
 
+def _max_market_cap_yi(config: dict) -> float:
+    return float(config.get("max_market_cap_yi", 500))
+
+
+def _under_market_cap(quote: dict, max_market_cap: float) -> bool:
+    market_cap = _number(quote.get("market_cap"))
+    return market_cap is not None and market_cap < max_market_cap
+
+
 def _screening_message(
     hot_count: int,
     initial_count: int,
@@ -328,10 +349,11 @@ def _screening_message(
     reliable_count: int,
     market_financials_failed: bool,
     failure_count: int,
+    max_market_cap_yi: float,
 ) -> str:
     message = (
-        f"热度池 {hot_count} 只，初筛 {initial_count} 只并精确复评 {precise_count} 只，"
-        f"已选出综合健康分 Top {result_count}"
+        f"热度池 {hot_count} 只，其中市值 {max_market_cap_yi:g} 亿以下 {initial_count} 只进入初筛，"
+        f"精确复评 {precise_count} 只，已选出综合健康分 Top {result_count}"
     )
     if reliable_count < result_count:
         message += f"（{reliable_count} 只达到可信度门槛，其余为补位）"

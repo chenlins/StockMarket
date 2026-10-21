@@ -15,6 +15,7 @@ screening:
   enabled: true
   top_count: 10
   hot_limit: 500
+  max_market_cap_yi: 500
   precise_count: 30
   min_confidence: 60
   workers: 6

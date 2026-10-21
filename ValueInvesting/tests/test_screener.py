@@ -8,6 +8,7 @@ from health.screener import (
     _enrich_quote,
     _is_eligible,
     _select_reliable_first,
+    _under_market_cap,
 )
 
 
@@ -178,6 +179,41 @@ def test_ranking_keeps_reliable_stocks_before_low_confidence_fillers():
         "600007",
     ]
     assert [item["compact"]["code"] for item in selected[4:]] == ["600000", "600001"]
+
+
+def test_market_cap_limit_keeps_only_stocks_below_500_yi():
+    limit = 500 * 100_000_000
+    assert _under_market_cap({"market_cap": limit - 1}, limit)
+    assert not _under_market_cap({"market_cap": limit}, limit)
+    assert not _under_market_cap({"market_cap": None}, limit)
+
+
+def test_ranking_excludes_stocks_at_or_above_the_market_cap_limit():
+    class LargeCapFetcher(RankingFetcher):
+        def get_quote_list(self):
+            result = super().get_quote_list()
+            result.data[0]["market_cap"] = 80_000_000_000
+            return result
+
+    screener = TopHealthScreener(
+        LargeCapFetcher(),
+        MemoryStorage(),
+        {
+            "enabled": True,
+            "top_count": 10,
+            "hot_limit": 12,
+            "max_market_cap_yi": 500,
+            "workers": 2,
+            "root_config": ROOT_CONFIG,
+        },
+    )
+
+    screener._refresh()
+    codes = [item["code"] for item in screener.snapshot()["results"]]
+
+    assert "600000" not in codes
+    assert len(codes) == 10
+    assert "市值 500 亿以下" in screener.snapshot()["message"]
 
 
 def test_financially_derived_valuation_is_rechecked_for_eligibility():
